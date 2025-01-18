@@ -1,0 +1,5 @@
+*.out
+config.txt
+run.sh
+*.dSYM/*
+main
