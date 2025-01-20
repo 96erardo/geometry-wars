@@ -14,7 +14,7 @@
         "-lsfml-window",
         "-lsfml-system",
         "-g",
-        "${file}",
+        "${fileDirname}/**.cpp",
         "-o",
         "${fileDirname}/${fileBasenameNoExtension}"
       ],
