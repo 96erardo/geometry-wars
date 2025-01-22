@@ -29,20 +29,24 @@ Vec2 Vec2::operator/ (float rhs) const {
   return Vec2(x * (1/rhs), y * (1/rhs));
 }
 
-Vec2 Vec2::operator+= (const Vec2& rhs) const {
-  return Vec2(x + rhs.x, y + rhs.y);
+void Vec2::operator+= (const Vec2& rhs) {
+  x += rhs.x;
+  y += rhs.y;
 }
 
-Vec2 Vec2::operator-= (const Vec2& rhs) const {
-  return Vec2(x - rhs.x, y - rhs.y);
+void Vec2::operator-= (const Vec2& rhs) {
+  x -= rhs.x;
+  y -= rhs.y;  
 }
 
-Vec2 Vec2::operator*= (float rhs) const {
-  return Vec2(x * rhs, y * rhs);
+void Vec2::operator*= (float rhs) {
+  x *= rhs;
+  y *= rhs;
 }
 
-Vec2 Vec2::operator/= (float rhs) const {
-  return Vec2(x * (1/rhs), y * (1/rhs));
+void Vec2::operator/= (float rhs) {
+  x = x * (1/rhs);
+  y = y * (1/rhs);
 }
 
 float Vec2::length () const {
