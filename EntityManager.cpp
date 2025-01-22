@@ -9,8 +9,24 @@ void EntityManager::init () {
 }
 
 void EntityManager::update () {
-  for (auto add : m_toAdd) {
+  m_entities.erase(
+    std::remove_if(m_entities.begin(), m_entities.end(), [](std::shared_ptr<Entity> e) {
+      if (e->isActive() == false) {
+        std::cout << e->id() << " destroyed\n";
+      }
+
+      return e->isActive() == false;
+    }),
+    m_entities.end()
+  );
+
+  // for (const auto& [tag, entities] : m_entityMap) {
+  //  std::remove_if(entities.begin(), entities.end(), [](std::shared_ptr<Entity> e) { return e->isActive() == false; });
+  // }
+
+  for (const auto& add : m_toAdd) {
     m_entities.push_back(add);
+    m_entityMap[add->tag()].push_back(add);
   }
 
   m_toAdd.clear();

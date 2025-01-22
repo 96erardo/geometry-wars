@@ -3,6 +3,7 @@
 #include <fstream>
 #include <cstdlib>
 #include <ctime>
+#include <numbers>
 #include "Game.h"
 #include "utils.h"
 
@@ -54,6 +55,8 @@ void Game::run () {
 
     sUserInput();
     sMovement();
+    sLifespan();
+    sEnemySpawner();
     sRender();
   }
 }
@@ -125,6 +128,35 @@ void Game::spawnEnemy () {
   );
 }
 
+void Game::spawnBullet (const std::shared_ptr<Entity> from, const Vec2& point) {
+  auto entity = m_entities.addEntity("bullet");
+
+  float co = point.y - from->cTransform->pos.y;
+  float ca = point.x - from->cTransform->pos.x;
+  float angle = atan2(co, ca);
+
+  float xSpeed = cos(angle) * m_bulletConf.S;
+  float ySpeed = sin(angle) * m_bulletConf.S;
+
+  entity->cTransform = std::make_shared<CTransform>(
+    Vec2(from->cTransform->pos.x, from->cTransform->pos.y),
+    Vec2(xSpeed, ySpeed),
+    0
+  );
+
+  entity->cShape = std::make_shared<CShape>(
+    m_bulletConf.SR,
+    m_bulletConf.V,
+    sf::Color(m_bulletConf.FR, m_bulletConf.FG, m_bulletConf.FB),
+    sf::Color(m_bulletConf.OR, m_bulletConf.OG, m_bulletConf.OB),
+    m_bulletConf.OT
+  );
+
+  entity->cLifespan = std::make_shared<CLifespan>(
+    m_bulletConf.L
+  );
+}
+
 void Game::sUserInput () {
   while (const std::optional event = m_window.pollEvent()) {
 
@@ -170,6 +202,16 @@ void Game::sUserInput () {
         if (keyReleased->scancode == sf::Keyboard::Scan::D) {
           m_player->cInput->right = false;
         }
+      
+      } else if (const auto* mousePressed = event->getIf<sf::Event::MouseButtonPressed>()) {
+        m_player->cInput->shoot = true;
+
+        std::cout << "click \n";
+
+        spawnBullet(m_player, Vec2(mousePressed->position.x, mousePressed->position.y));
+      
+      } else if (const auto* mousePressed = event->getIf<sf::Event::MouseButtonReleased>()) {
+        m_player->cInput->shoot = false;
       }
     }
   }
@@ -199,26 +241,56 @@ void Game::sMovement () {
     }
   
     if (entity ->cTransform) {
-      entity->cTransform->pos += entity->cTransform->velocity;
+      Vec2 nextPos = entity->cTransform->pos + entity->cTransform->velocity;
+      
+      auto [width, height] = m_window.getSize();
 
-      if (!entity->cInput) {
-        auto [width, height] = m_window.getSize();
-
-        if ((entity->cTransform->pos.x - entity->cShape->circle.getRadius()) <= 0 || 
-          (entity->cTransform->pos.x + entity->cShape->circle.getRadius()) >= width
+      if (entity->tag() != "bullet") {
+        if ((nextPos.x - entity->cShape->circle.getRadius()) <= 0 || 
+          (nextPos.x + entity->cShape->circle.getRadius()) >= width
         ) {
-          entity->cTransform->velocity.x *= -1;
+          if (entity->cInput) {
+            entity->cTransform->velocity.x = 0;
+          } else {
+            entity->cTransform->velocity.x *= -1;
+          }
         }
 
-        if ((entity->cTransform->pos.y - entity->cShape->circle.getRadius()) <= 0 || 
-          (entity->cTransform->pos.y + entity->cShape->circle.getRadius()) >= height
+        if ((nextPos.y - entity->cShape->circle.getRadius()) <= 0 || 
+          (nextPos.y + entity->cShape->circle.getRadius()) >= height
         ) {
-          entity->cTransform->velocity.y *= -1;
+          if (entity->cInput) {
+            entity->cTransform->velocity.y = 0;
+          } else {
+            entity->cTransform->velocity.y *= -1;
+          }
         }
       }
 
+      entity->cTransform->pos += entity->cTransform->velocity;
       entity->cTransform->angle = std::fmod(entity->cTransform->angle + 1.0f, 360);
     }
+  }
+}
+
+void Game::sLifespan () {
+  for (auto entity: m_entities.getEntities()) {
+    if (entity->cLifespan) {
+      entity->cLifespan->remaining -= 1;
+
+      if (entity->cLifespan->remaining == 0) {
+        std::cout << entity->id() << " should be destroyed\n";
+        entity->destroy();
+      }
+    }
+  }
+}
+
+void Game::sEnemySpawner () {
+  m_currentFrame++;
+
+  if (m_currentFrame % m_enemyConf.SP == 0) {
+    spawnEnemy();
   }
 }
 
@@ -235,6 +307,15 @@ void Game::sRender () {
       entity->cShape->circle.setRotation(
         sf::degrees(entity->cTransform->angle)
       );
+    }
+
+    if (entity->cLifespan && entity->cShape) {
+      sf::Color fill = entity->cShape->circle.getFillColor();
+      sf::Color outline = entity->cShape->circle.getOutlineColor();
+      int alpha = (entity->cLifespan->remaining * 255) / entity->cLifespan->total;
+
+      entity->cShape->circle.setFillColor(sf::Color(fill.r, fill.g, fill.b, alpha));
+      entity->cShape->circle.setOutlineColor(sf::Color(outline.r, outline.g, outline.b, alpha));
     }
 
     m_window.draw(entity->cShape->circle);
