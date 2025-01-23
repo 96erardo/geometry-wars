@@ -11,20 +11,21 @@ void EntityManager::init () {
 void EntityManager::update () {
   m_entities.erase(
     std::remove_if(m_entities.begin(), m_entities.end(), [](std::shared_ptr<Entity> e) {
-      if (e->isActive() == false) {
-        std::cout << e->id() << " destroyed\n";
-      }
-
       return e->isActive() == false;
     }),
     m_entities.end()
   );
 
-  // for (const auto& [tag, entities] : m_entityMap) {
-  //  std::remove_if(entities.begin(), entities.end(), [](std::shared_ptr<Entity> e) { return e->isActive() == false; });
-  // }
+  for (auto& [tag, entities] : m_entityMap) {
+    entities.erase(
+      std::remove_if(entities.begin(), entities.end(), [](std::shared_ptr<Entity> e) { 
+        return e->isActive() == false; 
+      }),
+      entities.end()
+    );
+  }
 
-  for (const auto& add : m_toAdd) {
+  for (const auto add : m_toAdd) {
     m_entities.push_back(add);
     m_entityMap[add->tag()].push_back(add);
   }
@@ -44,6 +45,6 @@ std::vector<std::shared_ptr<Entity>> EntityManager::getEntities() {
   return m_entities;
 }
 
-// std::vector<Entity> EntityManager::getEntities(std::string& tag) {
-
-// }
+std::vector<std::shared_ptr<Entity>> EntityManager::getEntities(const std::string& tag) {
+  return m_entityMap[tag];
+}

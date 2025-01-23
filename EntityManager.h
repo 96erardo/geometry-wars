@@ -20,5 +20,5 @@ class EntityManager {
 
     std::vector<std::shared_ptr<Entity>> getEntities();
 
-    std::vector<std::shared_ptr<Entity>> getEntities(std::string& tag);
+    std::vector<std::shared_ptr<Entity>> getEntities(const std::string& tag);
 };

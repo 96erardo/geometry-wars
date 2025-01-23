@@ -57,6 +57,7 @@ void Game::run () {
     sMovement();
     sLifespan();
     sEnemySpawner();
+    sCollision();
     sRender();
   }
 }
@@ -84,6 +85,8 @@ void Game::spawnPlayer () {
   );
 
   entity->cInput = std::make_shared<CInput>();
+
+  entity->cCollision = std::make_shared<CCollision>(m_playerConf.CR);
 
   m_player = entity;
 }
@@ -126,6 +129,44 @@ void Game::spawnEnemy () {
     sf::Color(m_enemyConf.OR, m_enemyConf.OG, m_enemyConf.OB),
     m_enemyConf.OT
   );
+
+  entity->cCollision = std::make_shared<CCollision>(m_enemyConf.CR);
+}
+
+void Game::spawnSmallEnemies (const std::shared_ptr<Entity> parent) {
+  float x = parent->cTransform->pos.x;
+  float y = parent->cTransform->pos.y;
+  int points = parent->cShape->circle.getPointCount();
+  float angleDistance = (2*(atan(1) * 4)) / points;
+  float speed = between(m_enemyConf.SMAX, m_enemyConf.SMIN);
+
+  for (int i = 0; i < points; i++) {
+    auto entity = m_entities.addEntity("enemy");
+    
+    float angle = angleDistance * i;
+    float xSpeed = cos(angle) * speed;
+    float ySpeed = sin(angle) * speed;
+
+    entity->cTransform = std::make_shared<CTransform>(
+      Vec2(x, y),
+      Vec2(xSpeed, ySpeed),
+      0
+    );
+
+    entity->cShape = std::make_shared<CShape>(
+      m_enemyConf.SR / 2,
+      points,
+      parent->cShape->circle.getFillColor(),
+      parent->cShape->circle.getOutlineColor(),
+      m_enemyConf.OT
+    );
+
+    entity->cLifespan = std::make_shared<CLifespan>(m_enemyConf.L);
+
+    entity->cCollision = std::make_shared<CCollision>(
+      m_enemyConf.CR / 2
+    );
+  }
 }
 
 void Game::spawnBullet (const std::shared_ptr<Entity> from, const Vec2& point) {
@@ -155,6 +196,8 @@ void Game::spawnBullet (const std::shared_ptr<Entity> from, const Vec2& point) {
   entity->cLifespan = std::make_shared<CLifespan>(
     m_bulletConf.L
   );
+
+  entity->cCollision = std::make_shared<CCollision>(m_bulletConf.CR);
 }
 
 void Game::sUserInput () {
@@ -205,8 +248,6 @@ void Game::sUserInput () {
       
       } else if (const auto* mousePressed = event->getIf<sf::Event::MouseButtonPressed>()) {
         m_player->cInput->shoot = true;
-
-        std::cout << "click \n";
 
         spawnBullet(m_player, Vec2(mousePressed->position.x, mousePressed->position.y));
       
@@ -279,7 +320,6 @@ void Game::sLifespan () {
       entity->cLifespan->remaining -= 1;
 
       if (entity->cLifespan->remaining == 0) {
-        std::cout << entity->id() << " should be destroyed\n";
         entity->destroy();
       }
     }
@@ -291,6 +331,50 @@ void Game::sEnemySpawner () {
 
   if (m_currentFrame % m_enemyConf.SP == 0) {
     spawnEnemy();
+  }
+}
+
+void Game::sCollision () {
+  std::vector<std::shared_ptr<Entity>> collided;
+  bool playerHit = false;
+
+  for (auto bullet: m_entities.getEntities("bullet")) {
+    for (auto enemy: m_entities.getEntities("enemy")) {
+      Vec2 dist = bullet->cTransform->pos - enemy->cTransform->pos;
+      
+      if (
+        ((dist.x * dist.x) + (dist.y * dist.y)) <
+        ((bullet->cShape->circle.getRadius() + enemy->cShape->circle.getRadius()) * (bullet->cShape->circle.getRadius() + enemy->cShape->circle.getRadius()))
+      ) {
+
+        collided.push_back(enemy);
+
+        bullet->destroy();
+        enemy->destroy();
+      }
+    }
+  }
+
+  for (auto enemy: m_entities.getEntities("enemy")) {
+    Vec2 dist = m_player->cTransform->pos - enemy->cTransform->pos;
+    
+    if (
+      playerHit == false &&
+      enemy->isActive() &&
+      ((dist.x * dist.x) + (dist.y * dist.y)) <
+      ((m_player->cShape->circle.getRadius() + enemy->cShape->circle.getRadius()) * (m_player->cShape->circle.getRadius() + enemy->cShape->circle.getRadius()))
+    ) {
+      m_player->destroy();
+      enemy->destroy();
+    }
+  }
+
+  for (auto enemy: collided) {
+    spawnSmallEnemies(enemy);
+  }
+
+  if (playerHit) {
+    spawnPlayer();
   }
 }
 
