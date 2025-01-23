@@ -31,6 +31,20 @@ class CShape {
   }
 };
 
+class CText {
+  public:
+    sf::Text text;
+
+  CText (
+    int size,
+    const sf::Font&  font,
+    const sf::Color& color
+  ) : text(font) {
+    text.setCharacterSize(size);
+    text.setFillColor(color);
+  }
+};
+
 class CCollision {
   public:
     float radius = 0;

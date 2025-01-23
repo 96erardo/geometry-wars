@@ -35,6 +35,12 @@ void Game::init (const std::string& config) {
 
   std::time_t seed = time(nullptr);
   std::srand(seed);
+
+  if (!m_font.openFromFile(m_fontConf.F)) {
+    std::cout << "Could not load font " << m_fontConf.F << "\n";
+
+    return;
+  }
   
   m_window = sf::RenderWindow(
     sf::VideoMode({ m_windowConf.W, m_windowConf.H }), 
@@ -45,8 +51,8 @@ void Game::init (const std::string& config) {
 
   m_window.setFramerateLimit(m_windowConf.FL);
 
+  createScore();
   spawnPlayer();
-  spawnEnemy();
 }
 
 void Game::run () {
@@ -57,6 +63,7 @@ void Game::run () {
     sMovement();
     sLifespan();
     sEnemySpawner();
+    sScore();
     sCollision();
     sRender();
   }
@@ -131,6 +138,10 @@ void Game::spawnEnemy () {
   );
 
   entity->cCollision = std::make_shared<CCollision>(m_enemyConf.CR);
+
+  entity->cScore = std::make_shared<CScore>(
+    points * 100
+  );
 }
 
 void Game::spawnSmallEnemies (const std::shared_ptr<Entity> parent) {
@@ -166,6 +177,10 @@ void Game::spawnSmallEnemies (const std::shared_ptr<Entity> parent) {
     entity->cCollision = std::make_shared<CCollision>(
       m_enemyConf.CR / 2
     );
+
+    entity->cScore = std::make_shared<CScore>(
+      points * 200
+    );
   }
 }
 
@@ -198,6 +213,24 @@ void Game::spawnBullet (const std::shared_ptr<Entity> from, const Vec2& point) {
   );
 
   entity->cCollision = std::make_shared<CCollision>(m_bulletConf.CR);
+}
+
+void Game::createScore () {
+  auto entity = m_entities.addEntity("text");
+
+  entity->cTransform = std::make_shared<CTransform>(
+    Vec2(10, 10),
+    Vec2(0, 0),
+    0
+  );
+
+  entity->cText = std::make_shared<CText>(
+    m_fontConf.S,
+    m_font,
+    sf::Color(m_fontConf.R, m_fontConf.G, m_fontConf.B)
+  );
+
+  entity->cText->text.setString("SCORE: " + std::to_string(m_score));
 }
 
 void Game::sUserInput () {
@@ -286,7 +319,7 @@ void Game::sMovement () {
       
       auto [width, height] = m_window.getSize();
 
-      if (entity->tag() != "bullet") {
+      if (entity->tag() != "bullet" && entity->tag() != "text") {
         if ((nextPos.x - entity->cShape->circle.getRadius()) <= 0 || 
           (nextPos.x + entity->cShape->circle.getRadius()) >= width
         ) {
@@ -309,7 +342,26 @@ void Game::sMovement () {
       }
 
       entity->cTransform->pos += entity->cTransform->velocity;
-      entity->cTransform->angle = std::fmod(entity->cTransform->angle + 1.0f, 360);
+
+      if (entity->cShape) {
+        entity->cTransform->angle = std::fmod(entity->cTransform->angle + 1.0f, 360);
+        
+        entity->cShape->circle.setPosition({
+          entity->cTransform->pos.x,
+          entity->cTransform->pos.y,
+        });
+
+        entity->cShape->circle.setRotation(
+          sf::degrees(entity->cTransform->angle)
+        );
+      }
+
+      if (entity->cText) {
+        entity->cText->text.setPosition({
+          entity->cTransform->pos.x,
+          entity->cTransform->pos.y,
+        });
+      }
     }
   }
 }
@@ -322,6 +374,15 @@ void Game::sLifespan () {
       if (entity->cLifespan->remaining == 0) {
         entity->destroy();
       }
+
+      if (entity->cShape) {
+        sf::Color fill = entity->cShape->circle.getFillColor();
+        sf::Color outline = entity->cShape->circle.getOutlineColor();
+        int alpha = (entity->cLifespan->remaining * 255) / entity->cLifespan->total;
+
+        entity->cShape->circle.setFillColor(sf::Color(fill.r, fill.g, fill.b, alpha));
+        entity->cShape->circle.setOutlineColor(sf::Color(outline.r, outline.g, outline.b, alpha));
+      }
     }
   }
 }
@@ -331,6 +392,14 @@ void Game::sEnemySpawner () {
 
   if (m_currentFrame % m_enemyConf.SP == 0) {
     spawnEnemy();
+  }
+}
+
+void Game::sScore () {
+  for (auto entity: m_entities.getEntities("text")) {
+    if (entity->cText) {
+      entity->cText->text.setString("SCORE: " + std::to_string(m_score));
+    }
   }
 }
 
@@ -347,7 +416,11 @@ void Game::sCollision () {
         ((bullet->cShape->circle.getRadius() + enemy->cShape->circle.getRadius()) * (bullet->cShape->circle.getRadius() + enemy->cShape->circle.getRadius()))
       ) {
 
-        collided.push_back(enemy);
+        if (!enemy->cLifespan) {
+          spawnSmallEnemies(enemy);
+        }
+
+        m_score += enemy->cScore->score;
 
         bullet->destroy();
         enemy->destroy();
@@ -364,13 +437,10 @@ void Game::sCollision () {
       ((dist.x * dist.x) + (dist.y * dist.y)) <
       ((m_player->cShape->circle.getRadius() + enemy->cShape->circle.getRadius()) * (m_player->cShape->circle.getRadius() + enemy->cShape->circle.getRadius()))
     ) {
+      playerHit = true;
       m_player->destroy();
       enemy->destroy();
     }
-  }
-
-  for (auto enemy: collided) {
-    spawnSmallEnemies(enemy);
   }
 
   if (playerHit) {
@@ -382,27 +452,13 @@ void Game::sRender () {
   m_window.clear(sf::Color::Black);
 
   for (auto entity: m_entities.getEntities()) {
-    if (entity->cTransform) {
-      entity->cShape->circle.setPosition({
-        entity->cTransform->pos.x,
-        entity->cTransform->pos.y,
-      });
-
-      entity->cShape->circle.setRotation(
-        sf::degrees(entity->cTransform->angle)
-      );
+    if (entity->cShape) {
+      m_window.draw(entity->cShape->circle);
     }
 
-    if (entity->cLifespan && entity->cShape) {
-      sf::Color fill = entity->cShape->circle.getFillColor();
-      sf::Color outline = entity->cShape->circle.getOutlineColor();
-      int alpha = (entity->cLifespan->remaining * 255) / entity->cLifespan->total;
-
-      entity->cShape->circle.setFillColor(sf::Color(fill.r, fill.g, fill.b, alpha));
-      entity->cShape->circle.setOutlineColor(sf::Color(outline.r, outline.g, outline.b, alpha));
+    if (entity->cText) {
+      m_window.draw(entity->cText->text);
     }
-
-    m_window.draw(entity->cShape->circle);
   }
 
   m_window.display();

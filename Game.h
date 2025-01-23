@@ -22,6 +22,7 @@ class Game {
   int              m_lastEnemySpawnTime = 0;
   bool             m_paused = false;
   bool             m_running = true;
+  sf::Font         m_font;
   std::time_t      m_seed = time(nullptr);
 
   std::shared_ptr<Entity> m_player;
@@ -35,12 +36,15 @@ class Game {
   void sRender();
   void sEnemySpawner();
   void sCollision();
+  void sScore();
 
   void spawnPlayer();
   void spawnEnemy();
   void spawnSmallEnemies(const std::shared_ptr<Entity> entity);
   void spawnBullet(std::shared_ptr<Entity> entity, const Vec2& mousePos);
   void spawnSpecialWeapon(std::shared_ptr<Entity> entity);
+
+  void createScore();
 
   public:
     Game (const std::string& config);

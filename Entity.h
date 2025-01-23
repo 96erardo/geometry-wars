@@ -13,6 +13,7 @@ class Entity {
 
     std::shared_ptr<CTransform> cTransform;
     std::shared_ptr<CShape> cShape;
+    std::shared_ptr<CText> cText;
     std::shared_ptr<CCollision> cCollision;
     std::shared_ptr<CInput> cInput;
     std::shared_ptr<CScore> cScore;
