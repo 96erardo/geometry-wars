@@ -3,3 +3,4 @@ config.txt
 run.sh
 *.dSYM/*
 main
+.DS_Store
